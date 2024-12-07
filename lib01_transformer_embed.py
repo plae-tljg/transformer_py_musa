@@ -7,20 +7,32 @@ device = torch.device("musa")
 
 class TokenEmbedding(nn.Embedding): # change index of a vocab list to an embedding
     def __init__(self, vocab_size, d_model):
+        # vocab_size: 词汇表大小
+        # d_model: 嵌入维度
+        # 输出维度: (batch_size, seq_len, d_model)
         super().__init__(vocab_size, d_model, padding_idx=1)
 
 class PositionalEmbedding(nn.Module):
     def __init__(self, d_model, max_len, device):   # d_model for dim of model, max_length for length of sentence
         super().__init__()
+        # encoding维度: (max_len, d_model)
         self.encoding = torch.zeros((max_len, d_model), device=device)
         self.encoding.requires_grad = False
-        pos = torch.arange(0, max_len, device=device)   # generate a sequence
+        
+        # pos维度: (max_len, 1)
+        pos = torch.arange(0, max_len, device=device)
         pos = pos.float().unsqueeze(dim=1)
+        
+        # _2i维度: (d_model/2,)
         _2i = torch.arange(0, d_model, step=2, device=device).float()
+        
+        # 最终encoding维度保持: (max_len, d_model)
         self.encoding[:, 0::2] = torch.sin(pos/(10000**(_2i/d_model)))
         self.encoding[:, 1::2] = torch.cos(pos/(10000**(_2i/d_model)))
 
     def forward(self, x):
+        # 输入x维度: (batch_size, seq_len)
+        # 输出维度: (seq_len, d_model)
         batch_size, seq_len = x.size()
         # # ====== Debug Information ======
         # print("="*50)
@@ -44,16 +56,17 @@ class TransformerEmbedding(nn.Module):
         self.drop_out = nn.Dropout(p=drop_prob)
     
     def forward(self, x):
+        # 输入x维度: (batch_size, seq_len)
+        
+        # tok_emb维度: (batch_size, seq_len, d_model)
         tok_emb = self.tok_emb(x)
+        
+        # pos_emb维度: (seq_len, d_model)
         pos_emb = self.pos_emb(x)
-        # # ====== Debug Information ======
-        # print("="*50)
-        # print("[DEBUG] TransformerEmbedding dimensions:")
-        # print(f"  Input x: {x.size()}")
-        # print(f"  Token embedding: {tok_emb.size()}")
-        # print(f"  Position embedding: {pos_emb.size()}")
-        # print("="*50)
-        return self.drop_out(tok_emb+pos_emb)
+        
+        # pos_emb会自动广播到tok_emb的维度
+        # 最终输出维度: (batch_size, seq_len, d_model)
+        return self.drop_out(tok_emb + pos_emb)
         
 
 

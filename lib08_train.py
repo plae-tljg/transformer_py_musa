@@ -14,23 +14,28 @@ def train_epoch(model, dataloader, criterion, optimizer):
     total_loss = 0
     
     for batch_idx, (src, tgt) in enumerate(tqdm(dataloader)):
+        # src, tgt维度: (batch_size, seq_len)
         src, tgt = src.to(device), tgt.to(device)
         
-        # 准备decoder输入(移除最后一个token)和目标(移除第一个token)
+        # decoder_input: (batch_size, seq_len-1) - 移除最后一个token
+        # target: (batch_size, seq_len-1) - 移除第一个token（通常是BOS）
         decoder_input = tgt[:, :-1]
         target = tgt[:, 1:]
         
         # 前向传播
         optimizer.zero_grad()
+        # output维度: (batch_size, seq_len-1, vocab_size)
         output = model(src, decoder_input)
         
         # 计算损失
+        # output.view: (batch_size*(seq_len-1), vocab_size)
+        # target.view: (batch_size*(seq_len-1),)
         loss = criterion(
             output.contiguous().view(-1, output.size(-1)),
             target.contiguous().view(-1)
         )
         
-        # 反向传播
+        # 反向传播和优化
         loss.backward()
         optimizer.step()
         
@@ -47,13 +52,18 @@ def validate(model, dataloader, criterion):
     
     with torch.no_grad():
         for src, tgt in tqdm(dataloader):
+            # src, tgt维度: (batch_size, seq_len)
             src, tgt = src.to(device), tgt.to(device)
             
+            # decoder_input: (batch_size, seq_len-1)
+            # target: (batch_size, seq_len-1)
             decoder_input = tgt[:, :-1]
             target = tgt[:, 1:]
             
+            # output维度: (batch_size, seq_len-1, vocab_size)
             output = model(src, decoder_input)
             
+            # 损失计算与训练阶段相同
             loss = criterion(
                 output.contiguous().view(-1, output.size(-1)),
                 target.contiguous().view(-1)
@@ -64,6 +74,11 @@ def validate(model, dataloader, criterion):
     return total_loss / len(dataloader)
 
 def save_checkpoint(epoch, model, optimizer, train_loss, val_loss, is_best=False):
+    # 保存模型状态:
+    # - epoch: 当前轮次
+    # - model_state_dict: 模型参数
+    # - optimizer_state_dict: 优化器状态
+    # - losses: 训练和验证损失
     checkpoint = {
         'epoch': epoch,
         'model_state_dict': model.state_dict(),
@@ -80,6 +95,25 @@ def save_checkpoint(epoch, model, optimizer, train_loss, val_loss, is_best=False
         torch.save(checkpoint, 'checkpoints/best_model.pt')
 
 if __name__ == "__main__":
+    # 模型配置:
+    # - vocab_size: tokenizer词汇表大小
+    # - d_model: 512 (嵌入维度)
+    # - max_len: 100 (最大序列长度)
+    # - n_head: 8 (注意力头数)
+    # - ffn_hidden: 2048 (前馈网络隐藏层大小)
+    # - n_layer: 6 (编码器/解码器层数)
+    
+    # 训练配置:
+    # - batch_size: 8
+    # - learning_rate: 0.0001
+    # - num_epochs: 5
+    
+    # 数据流程:
+    # 1. 输入文本 -> tokenizer -> 索引序列
+    # 2. 索引序列 -> dataloader -> (src, tgt)批次
+    # 3. 模型处理 -> 输出概率分布
+    # 4. 计算损失 -> 反向传播 -> 更新参数
+    
     # 初始化tokenizer
     tokenizer = Llama2Tokenizer()
     tokenizer.load("tokenizer.json")
